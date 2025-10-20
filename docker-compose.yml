@@ -1,33 +1,25 @@
-version: "3.9"
-
+version: '3.8'
 services:
+  api:
+    build: .
+    container_name: osm-fastapi
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      - OVERPASS_URL=https://overpass-api.de/api/interpreter
+      - POSTGRES_HOST=db
+      - POSTGRES_DB=osm
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
   db:
     image: postgis/postgis:15-3.3
     container_name: osm-postgis
+    restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: osm_cache
+      - POSTGRES_DB=osm
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
     ports:
       - "5432:5432"
-    volumes:
-      - ./postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  api:
-    build: .
-    container_name: osm-api
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    ports:
-      - "8000:8000"
-    environment:
-      DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/osm_cache
-    depends_on:
-      db:
-        condition: service_healthy
-    volumes:
-      - .:/app

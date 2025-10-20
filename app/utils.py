@@ -1,11 +1,11 @@
-from shapely.geometry import shape
+from shapely.geometry import shape, mapping
+from shapely import wkt
+import json
 
 def feature_to_wkt(feature: dict) -> str:
-    """
-    Convert a GeoJSON feature to WKT using shapely.
-    """
+    """Convert a GeoJSON feature to WKT string for insertion into PostGIS."""
     geom = feature.get("geometry")
     if not geom:
-        raise ValueError("Feature missing geometry")
+        return None
     shapely_geom = shape(geom)
     return shapely_geom.wkt

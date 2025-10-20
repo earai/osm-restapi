@@ -1,47 +1,75 @@
-from sqlalchemy.orm import Session
-from sqlalchemy import func
-from app.models import OSMCache
-from app.utils import feature_to_wkt
+from typing import List, Optional
+from sqlmodel import Session
+from sqlalchemy import text
+import json
 
+def is_area_covered(session: Session, aoi_wkt: str, key: Optional[str], value: Optional[str]) -> bool:
+    """Return True if the union of cached geometries for this key/value covers the AOI."""
+    params = {"aoi": aoi_wkt}
+    where_clause = ""
+    if key is not None:
+        where_clause += " AND query_key = :k"
+        params["k"] = key
+    if value is not None:
+        where_clause += " AND query_value = :v"
+        params["v"] = value
 
-def is_area_covered(session: Session, polygon_wkt: str) -> bool:
+    sql = f"""
+    SELECT CASE WHEN ST_Covers(ST_Union(geom), ST_GeomFromText(:aoi,4326)) IS NULL THEN false
+                ELSE ST_Covers(ST_Union(geom), ST_GeomFromText(:aoi,4326)) END as covers
+    FROM osm_cache
+    WHERE 1=1 {where_clause}
     """
-    Checks if cached features already fully cover the requested polygon area.
-    """
-    # Union all cached geometries and check coverage
-    union_geom = session.query(func.ST_Union(OSMCache.geometry)).scalar()
-    if not union_geom:
+
+    result = session.execute(text(sql), params).first()
+    if not result:
         return False
-    return session.query(func.ST_Covers(union_geom, func.ST_GeomFromText(polygon_wkt, 4326))).scalar()
+    return bool(result[0])
 
 
-def get_cached_features(session: Session, polygon_wkt: str):
+def get_cached_features_intersecting(session: Session, aoi_wkt: str, key: Optional[str], value: Optional[str]) -> dict:
+    """Return a GeoJSON FeatureCollection of cached features that intersect the AOI."""
+    params = {"aoi": aoi_wkt}
+    where_clause = ""
+    if key is not None:
+        where_clause += " AND query_key = :k"
+        params["k"] = key
+    if value is not None:
+        where_clause += " AND query_value = :v"
+        params["v"] = value
+
+    sql = f"""
+    SELECT id, ST_AsGeoJSON(geom) as geom_json, properties
+    FROM osm_cache
+    WHERE ST_Intersects(geom, ST_GeomFromText(:aoi,4326)) {where_clause}
     """
-    Get cached features intersecting a polygon.
-    """
-    return session.query(OSMCache).filter(
-        func.ST_Intersects(OSMCache.geometry, func.ST_GeomFromText(polygon_wkt, 4326))
-    ).all()
+
+    rows = session.execute(text(sql), params).all()
+    features = []
+    for r in rows:
+        geom_json = json.loads(r[1]) if r[1] else None
+        props = r[2] or {}
+        features.append({
+            "type": "Feature",
+            "properties": props,
+            "geometry": geom_json
+        })
+    return {"type": "FeatureCollection", "features": features}
 
 
-def insert_features(session: Session, features: list):
-    """
-    Insert GeoJSON features into cache.
-    """
-    for feature in features:
-        try:
-            geometry_wkt = feature_to_wkt(feature)
-            properties = feature.get("properties", {})
-            osm_id = str(feature.get("id"))
-            osm_type = feature.get("type", "unknown")
+def insert_features(session: Session, features: List[dict], key: Optional[str], value: Optional[str]) -> None:
+    """Insert GeoJSON features into osm_cache. Uses ST_GeomFromGeoJSON for geometry."""
+    insert_sql = text(
+        "INSERT INTO osm_cache (query_key, query_value, geom, properties) "
+        "VALUES (:k, :v, ST_SetSRID(ST_GeomFromGeoJSON(:geojson),4326), :props)"
+    )
 
-            cache_item = OSMCache(
-                osm_id=osm_id,
-                osm_type=osm_type,
-                geometry=func.ST_GeomFromText(geometry_wkt, 4326),
-                properties=properties
-            )
-            session.add(cache_item)
-        except Exception as e:
-            print(f"Skipping feature due to error: {e}")
+    for feat in features:
+        geom = feat.get("geometry")
+        props = feat.get("properties") or {}
+        if not geom:
+            continue
+        geojson_text = json.dumps(geom)
+        params = {"k": key, "v": value, "geojson": geojson_text, "props": json.dumps(props)}
+        session.execute(insert_sql, params)
     session.commit()
