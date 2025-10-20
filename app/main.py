@@ -113,10 +113,21 @@ def get_osm(
     >;
     out skel qt;
     """
-
-    response = requests.post(OVERPASS_URL, data=query, timeout=120)
+    print(f"Query: {query}", flush=True)
+    headers = {
+        "User-Agent": "osm-fastapi/1.0 (https://example.com)",
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    response = requests.post(OVERPASS_URL,
+                             data={"data": query},
+                             headers=headers,
+                             timeout=120)
+    print(f"Status code: {response.status_code}", flush=True)
+    print(f"Response headers: {response.headers}", flush=True)
+    print(f"Response text (first 300 chars): {response.text[:300]}", flush=True)
     response.raise_for_status()
     raw = response.json()
+    print(f"Raw response: {raw}", flush=True)
     print(f"Fetched from Overpass: {len(raw.get('elements', []))} elements", flush=True)
 
     features = elements_to_features(raw.get("elements", []))

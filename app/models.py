@@ -5,6 +5,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from geoalchemy2 import Geometry
 
 class OSMCache(SQLModel, table=True):
+    __tablename__ = "osm_cache"
     """Cache table for OSM features. Mixed geometry types stored in a single column."""
     id: Optional[int] = Field(default=None, primary_key=True)
     query_key: Optional[str] = Field(default=None, index=True)
