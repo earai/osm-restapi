@@ -128,25 +128,23 @@ def get_osm(
     except Exception as e:
         print(f"Cache check error: {e}", file=sys.stderr, flush=True)
 
-    raw = build_overpass_query_simple(bbox, key, value)
+    raw = build_overpass_query_bbox(bbox, key, value)
     #features = raw
     features = elements_to_features(raw.get("elements", []))
     try:
         crud.insert_features(session, features, key, value)
     except Exception as e:
         print(f"Failed to insert features into cache: {e}", file=sys.stderr, flush=True)
-
     return {"type": "FeatureCollection", "features": features}
 
 
-def build_overpass_query_simple(bbox: str, key: str, value: str) -> Any:
+def build_overpass_query_bbox(bbox: str, key: str, value: str) -> Any:
     # Overpass queryGET /favicon.ico
     query = f"""
         [out:json];
         node[\"{key}\"=\"{value}\"]({bbox});
         out;
         """
-    print("OVERPASS QUERY: ", query)
     try:
         response = requests.post(OVERPASS_URL, data=query, timeout=30)
         raw_data = response.json()
@@ -154,37 +152,6 @@ def build_overpass_query_simple(bbox: str, key: str, value: str) -> Any:
         return raw_data #overpass_to_geojson(raw_data)
     except Exception as e:
         return {"error": str(e)}
-
-
-def build_overpass_query(bbox: str, key: str, value: str) -> Any:
-    # Overpass query    print(insert_sql)
-
-    query = f"""
-    [out:json];
-    node["{key}"="{value}"]({bbox});
-    way["{key}"="{value}"]({bbox});
-    relation["{key}"="{value}"]({bbox});
-    out body;
-    >;
-    out skel qt;
-    """
-    print(f"Query: {query}", flush=True)
-    headers = {
-        "User-Agent": "osm-fastapi/1.0 (https://example.com)",
-        "Content-Type": "application/x-www-form-urlencoded"
-    }
-    response = requests.post(OVERPASS_URL,
-                             data={"data": query},
-                             headers=headers,
-                             timeout=120)
-    print(f"Status code: {response.status_code}", flush=True)
-    print(f"Response headers: {response.headers}", flush=True)
-    print(f"Response text (first 300 chars): {response.text[:300]}", flush=True)
-    response.raise_for_status()
-    raw = response.json()
-    print(f"Raw response: {raw}", flush=True)
-    print(f"Fetched from Overpass: {len(raw.get('elements', []))} elements", flush=True)
-    return overpass_to_geojson(raw)
 
 
 # -------------------------------------------------------
@@ -214,22 +181,8 @@ def get_osm_polygon(
     except Exception as e:
         print(f"Cache check error: {e}", file=sys.stderr, flush=True)
 
-    # Overpass polygon string
-    coords = polygon.get("coordinates", [[]])[0]
-    poly_string = " ".join([f"{c[1]} {c[0]}" for c in coords])
-    query = f"""
-    [out:json];
-    node["{key}"="{value}"](poly:"{poly_string}");
-    way["{key}"="{value}"](poly:"{poly_string}");
-    relation["{key}"="{value}"](poly:"{poly_string}");
-    out body;
-    >;
-    out skel qt;
-    """
+    raw = build_overpass_query_poly(key, polygon, value)
 
-    response = requests.post(OVERPASS_URL, data=query, timeout=180)
-    response.raise_for_status()
-    raw = response.json()
     print(f"Fetched polygon from Overpass: {len(raw.get('elements', []))} elements", flush=True)
 
     features = elements_to_features(raw.get("elements", []))
@@ -239,3 +192,24 @@ def get_osm_polygon(
         print(f"Failed to insert polygon features into cache: {e}", file=sys.stderr, flush=True)
 
     return {"type": "FeatureCollection", "features": features}
+
+
+def build_overpass_query_poly(key: str, polygon: dict, value: str) -> Any:
+    # Overpass polygon string
+    coords = polygon.get("coordinates", [[]])[0]
+    poly_string = " ".join([f"{c[1]} {c[0]}" for c in coords])
+
+    query = f"""
+    [out:json];
+    (
+      node["{key}"="{value}"](poly:"{poly_string}");
+      way["{key}"="{value}"](poly:"{poly_string}");
+      relation["{key}"="{value}"](poly:"{poly_string}");
+    );
+    out;
+    """
+
+    response = requests.post(OVERPASS_URL, data=query, timeout=180)
+    response.raise_for_status()
+    raw = response.json()
+    return raw
