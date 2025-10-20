@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+requests
+sqlalchemy
+psycopg2-binary
+sqlmodel
+geoalchemy2
+shapely
