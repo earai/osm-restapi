@@ -1,6 +1,6 @@
 from typing import Optional
 from sqlmodel import SQLModel, Field
-from sqlalchemy import Column, text
+from sqlalchemy import Column, DateTime, func
 from sqlalchemy.dialects.postgresql import JSONB
 from geoalchemy2 import Geometry
 
@@ -24,5 +24,5 @@ class OSMCache(SQLModel, table=True):
 
     created_at: Optional[str] = Field(
         default=None,
-        sa_column=Column(text("TIMESTAMP WITH TIME ZONE DEFAULT now()"))
+        sa_column=Column(DateTime(timezone=True), server_default=func.now())
     )

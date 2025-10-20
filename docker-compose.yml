@@ -1,18 +1,4 @@
-version: '3.8'
 services:
-  api:
-    build: .
-    container_name: osm-fastapi
-    ports:
-      - "8000:8000"
-    depends_on:
-      - db
-    environment:
-      - OVERPASS_URL=https://overpass-api.de/api/interpreter
-      - POSTGRES_HOST=db
-      - POSTGRES_DB=osm
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
   db:
     image: postgis/postgis:15-3.3
     container_name: osm-postgis
@@ -23,3 +9,20 @@ services:
       - POSTGRES_PASSWORD=postgres
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d osm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    container_name: osm-fastapi
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - OVERPASS_URL=https://overpass-api.de/api/interpreter
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/osm
