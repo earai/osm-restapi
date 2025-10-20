@@ -1,5 +1,7 @@
 import os
 import sys
+from typing import Any
+
 import requests
 from fastapi import FastAPI, Query, Body, Depends, HTTPException
 from sqlmodel import Session
@@ -45,7 +47,29 @@ def bbox_to_polygon_wkt(bbox: str) -> str:
     pts = ", ".join([f"{c[0]} {c[1]}" for c in coords])
     return f"POLYGON(({pts}))"
 
+def overpass_to_geojson(data):
+    features = []
+    for element in data.get("elements", []):
+        if element["type"] == "node":
+            geometry = {
+                "type": "Point",
+                "coordinates": [element["lon"], element["lat"]]
+            }
+        elif element["type"] == "way" and "geometry" in element:
+            geometry = {
+                "type": "LineString",
+                "coordinates": [[pt["lon"], pt["lat"]] for pt in element["geometry"]]
+            }
+        else:
+            continue
 
+        features.append({
+            "type": "Feature",
+            "properties": element.get("tags", {}),
+            "geometry": geometry
+        })
+
+    return {"type": "FeatureCollection", "features": features}
 # -------------------------------------------------------
 # 🌐 Helper: Convert Overpass elements to GeoJSON
 # -------------------------------------------------------
@@ -78,6 +102,7 @@ def elements_to_features(elements: list) -> list:
             "properties": elem.get("tags", {}),
             "geometry": geom
         })
+    print("IN ELEMENTS TO FEATURES: ", features)
     return features
 
 
@@ -88,7 +113,7 @@ def elements_to_features(elements: list) -> list:
 def get_osm(
     key: str = Query("amenity"),
     value: str = Query("cafe"),
-    bbox: str = Query("40.730610,-73.935242,40.750610,-73.915242"),
+    bbox: str = Query("40.738610,-73.930242,40.742610,-73.920242"),
     session: Session = Depends(get_session),
 ):
     try:
@@ -103,7 +128,37 @@ def get_osm(
     except Exception as e:
         print(f"Cache check error: {e}", file=sys.stderr, flush=True)
 
-    # Overpass query
+    raw = build_overpass_query_simple(bbox, key, value)
+    #features = raw
+    features = elements_to_features(raw.get("elements", []))
+    try:
+        crud.insert_features(session, features, key, value)
+    except Exception as e:
+        print(f"Failed to insert features into cache: {e}", file=sys.stderr, flush=True)
+
+    return {"type": "FeatureCollection", "features": features}
+
+
+def build_overpass_query_simple(bbox: str, key: str, value: str) -> Any:
+    # Overpass queryGET /favicon.ico
+    query = f"""
+        [out:json];
+        node[\"{key}\"=\"{value}\"]({bbox});
+        out;
+        """
+    print("OVERPASS QUERY: ", query)
+    try:
+        response = requests.post(OVERPASS_URL, data=query, timeout=30)
+        raw_data = response.json()
+        print("RAW DATA EXAMPLE", raw_data['elements'][2], file=sys.stdout, flush=True)
+        return raw_data #overpass_to_geojson(raw_data)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def build_overpass_query(bbox: str, key: str, value: str) -> Any:
+    # Overpass query    print(insert_sql)
+
     query = f"""
     [out:json];
     node["{key}"="{value}"]({bbox});
@@ -129,14 +184,7 @@ def get_osm(
     raw = response.json()
     print(f"Raw response: {raw}", flush=True)
     print(f"Fetched from Overpass: {len(raw.get('elements', []))} elements", flush=True)
-
-    features = elements_to_features(raw.get("elements", []))
-    try:
-        crud.insert_features(session, features, key, value)
-    except Exception as e:
-        print(f"Failed to insert features into cache: {e}", file=sys.stderr, flush=True)
-
-    return {"type": "FeatureCollection", "features": features}
+    return overpass_to_geojson(raw)
 
 
 # -------------------------------------------------------

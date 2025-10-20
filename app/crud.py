@@ -5,6 +5,8 @@ import json
 
 def is_area_covered(session: Session, aoi_wkt: str, key: Optional[str], value: Optional[str]) -> bool:
     """Return True if the union of cached geometries for this key/value covers the AOI."""
+    print("I am in crud is_area_covered")
+    print(f"Checking area coverage for AOI: {aoi_wkt}, key: {key}, value: {value}")
     params = {"aoi": aoi_wkt}
     where_clause = ""
     if key is not None:
@@ -59,17 +61,26 @@ def get_cached_features_intersecting(session: Session, aoi_wkt: str, key: Option
 
 def insert_features(session: Session, features: List[dict], key: Optional[str], value: Optional[str]) -> None:
     """Insert GeoJSON features into osm_cache. Uses ST_GeomFromGeoJSON for geometry."""
+
     insert_sql = text(
         "INSERT INTO osm_cache (query_key, query_value, geom, properties) "
         "VALUES (:k, :v, ST_SetSRID(ST_GeomFromGeoJSON(:geojson),4326), :props)"
     )
-
+    print("i am in insert_features")
+    #print("FEATURES: ", features)
+    #print("INSERT_SQL: ", insert_sql)
     for feat in features:
+        #print("FEAT: ", feat)
         geom = feat.get("geometry")
+        #print("GEOM: ", geom)
         props = feat.get("properties") or {}
+        #print("PROPS: ", props)
         if not geom:
             continue
         geojson_text = json.dumps(geom)
+        print("GEOJSON_TEXT: ", geojson_text)
         params = {"k": key, "v": value, "geojson": geojson_text, "props": json.dumps(props)}
+        print("PARAMS: ", params)
+
         session.execute(insert_sql, params)
     session.commit()
