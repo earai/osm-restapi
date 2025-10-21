@@ -7,24 +7,8 @@ import json
 
 def is_area_covered(session: Session, aoi_wkt: str, key: Optional[str], value: Optional[str]) -> bool:
     """Return True if the union of cached geometries for this key/value covers the AOI."""
-    print("I am in crud is_area_covered")
     print(f"Checking area coverage for AOI: {aoi_wkt}, key: {str(key)}, value: {value}")
     params = {"aoi": aoi_wkt,"key":str(key)}
-    print(f"params: {params}")
-    # where_clause = ""
-    # if key is not None:
-    #     where_clause += " AND query_key = :k"
-    #     params["k"] = key
-    # if value is not None:
-    #     where_clause += " AND query_value = :v"
-    #     params["v"] = value
-    # print(f"where_clause: {where_clause}")
-    # sql = f"""
-    # SELECT CASE WHEN ST_Covers(ST_Union(geom), ST_GeomFromText(:aoi,4326)) IS NULL THEN false
-    #             ELSE ST_Covers(ST_Union(geom), ST_GeomFromText(:aoi,4326)) END as covers
-    # FROM osm_cache
-    # WHERE 1=1 {where_clause}
-    # """
 
     sql = f"""
     SELECT COUNT(*) AS feature_count 
@@ -36,7 +20,6 @@ def is_area_covered(session: Session, aoi_wkt: str, key: Optional[str], value: O
             4326
         )
     ); """
-    print(f"sql: {sql}")
     result = session.execute(text(sql), params).first()
     print(f"result: {result}")
     if not result:
