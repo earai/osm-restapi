@@ -52,23 +52,19 @@ def get_osm_roads_polygon(
     # ✅ Validate polygon input
     if not isinstance(polygon, dict) or polygon.get("type") != "Polygon":
         raise HTTPException(status_code=400, detail="Invalid GeoJSON: must be Polygon")
-
     try:
         aoi_shape = shape(polygon)
         aoi_wkt = aoi_shape.wkt
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid polygon geometry: {e}")
-
+    print("aoi_shape: ", aoi_shape, flush=True)
+    print(f"aoi_wkt: {aoi_wkt}", flush=True)
     # ✅ Check cache coverage
     try:
         if crud.is_area_covered(session, aoi_wkt, key, value):
             return crud.get_cached_features_intersecting(session, aoi_wkt, key, value)
     except Exception as e:
         print(f"Cache check error: {e}", file=sys.stderr, flush=True)
-
-    # ✅ Build Overpass polygon string
-    #coords = polygon.get("coordinates", [[]])[0]
-    #poly_string = " ".join([f"{c[1]} {c[0]}" for c in coords])
 
     # ✅ Build Overpass query for highways
     query = f"""
