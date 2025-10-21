@@ -1,10 +1,15 @@
 import sys
+import os
+import osm2geojson
 import requests
 from shapely.geometry import shape
 from fastapi import HTTPException
 from app import crud
 
-OVERPASS_URL = "https://overpass-api.de/api/interpreter"  # or from env
+OVERPASS_URL = os.getenv("OVERPASS_URL", "https://overpass-api.de/api/interpreter")
+
+def overpass_to_geojson(osm_json):
+    return osm2geojson.json2geojson(osm_json)
 
 def fetch_osm_by_polygon(polygon: dict, key: str, value: str, query_template: str, session):
     # ✅ Validate polygon input
@@ -32,7 +37,7 @@ def fetch_osm_by_polygon(polygon: dict, key: str, value: str, query_template: st
 
     # ✅ Send Overpass request
     try:
-        response = requests.post(OVERPASS_URL, data=query, timeout=180)
+        response = requests.post(OVERPASS_URL, data=query, timeout=(20, 180))
         response.raise_for_status()
         raw = response.json()
     except Exception as e:
@@ -41,7 +46,6 @@ def fetch_osm_by_polygon(polygon: dict, key: str, value: str, query_template: st
     print(f"Fetched {key} features from Overpass: {len(raw.get('elements', []))} elements", flush=True)
 
     # ✅ Convert and cache
-    from app.main import overpass_to_geojson  # or import at top if no circular deps
     geojson_features = overpass_to_geojson(raw)
     try:
         crud.insert_features(session, geojson_features["features"], key, value)
