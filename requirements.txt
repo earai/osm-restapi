@@ -6,3 +6,4 @@ psycopg2-binary
 sqlmodel
 geoalchemy2
 shapely
+osm2geojson

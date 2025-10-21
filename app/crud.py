@@ -66,21 +66,13 @@ def insert_features(session: Session, features: List[dict], key: Optional[str], 
         "INSERT INTO osm_cache (query_key, query_value, geom, properties) "
         "VALUES (:k, :v, ST_SetSRID(ST_GeomFromGeoJSON(:geojson),4326), :props)"
     )
-    print("i am in insert_features")
-    #print("FEATURES: ", features)
-    #print("INSERT_SQL: ", insert_sql)
     for feat in features:
-        #print("FEAT: ", feat)
         geom = feat.get("geometry")
-        #print("GEOM: ", geom)
         props = feat.get("properties") or {}
-        #print("PROPS: ", props)
         if not geom:
             continue
         geojson_text = json.dumps(geom)
-        print("GEOJSON_TEXT: ", geojson_text)
         params = {"k": key, "v": value, "geojson": geojson_text, "props": json.dumps(props)}
-        print("PARAMS: ", params)
 
         session.execute(insert_sql, params)
     session.commit()

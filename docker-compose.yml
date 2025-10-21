@@ -16,7 +16,7 @@ services:
       retries: 10
 
   api:
-    build: .
+    image: osm-fastapi:latest
     container_name: osm-fastapi
     ports:
       - "8000:8000"
@@ -26,3 +26,5 @@ services:
     environment:
       - OVERPASS_URL=https://overpass-api.de/api/interpreter
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/osm
+    volumes:
+      - .:/osmrestapi
