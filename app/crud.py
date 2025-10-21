@@ -21,7 +21,7 @@ def is_area_covered(session: Session, aoi_wkt: str, key: Optional[str], value: O
         )
     ); """
     result = session.execute(text(sql), params).first()
-    print(f"result: {result}")
+    #print(f"result: {result}")
     if not result:
         return False
     return bool(result[0])
