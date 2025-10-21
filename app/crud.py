@@ -1,4 +1,6 @@
 from typing import List, Optional
+
+import psycopg2
 from sqlmodel import Session
 from sqlalchemy import text
 import json
@@ -6,8 +8,8 @@ import json
 def is_area_covered(session: Session, aoi_wkt: str, key: Optional[str], value: Optional[str]) -> bool:
     """Return True if the union of cached geometries for this key/value covers the AOI."""
     print("I am in crud is_area_covered")
-    print(f"Checking area coverage for AOI: {aoi_wkt}, key: {key}, value: {value}")
-    params = {"aoi": aoi_wkt}
+    print(f"Checking area coverage for AOI: {aoi_wkt}, key: {str(key)}, value: {value}")
+    params = {"aoi": aoi_wkt,"key":str(key)}
     print(f"params: {params}")
     # where_clause = ""
     # if key is not None:
@@ -27,7 +29,7 @@ def is_area_covered(session: Session, aoi_wkt: str, key: Optional[str], value: O
     sql = f"""
     SELECT COUNT(*) AS feature_count 
     FROM public.osm_cache
-    WHERE ST_Intersects(
+    WHERE query_key = :key AND ST_Intersects(
         geom,
         ST_GeomFromText(
             :aoi,
@@ -87,5 +89,9 @@ def insert_features(session: Session, features: List[dict], key: Optional[str], 
         geojson_text = json.dumps(geom)
         params = {"k": key, "v": value, "geojson": geojson_text, "props": json.dumps(props)}
 
-        session.execute(insert_sql, params)
-    session.commit()
+        try:
+            session.execute(insert_sql, params)
+            session.commit()
+        except psycopg2.Error as e:
+            print(f"Error: {e}")
+            session.rollback()
