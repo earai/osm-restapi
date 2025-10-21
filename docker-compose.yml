@@ -26,5 +26,7 @@ services:
     environment:
       - OVERPASS_URL=https://overpass-api.de/api/interpreter
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/osm
+      - MOCK_FILE_PATH=/osmrestapi/tests/test_data
     volumes:
       - .:/osmrestapi
+      - ./tests/test_data:/osmrestapi/tests/test_data:ro
